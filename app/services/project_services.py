@@ -9,7 +9,8 @@ from fastapi import (
     status,
 )
 
-from app.models.project_models import ProjectCreate, ProjectEdit, TaskCreate, ProjectForm
+from app.models.project_models import ProjectCreate, ProjectEdit, TaskCreate, ProjectForm, TaskForm
+from app.models.auth_models import User as UserForm
 from app.models.user_models import connect_db, Project, Task, TaskProject, TaskUser, ProjectUser, User
 from sqlalchemy.orm import Session
 
@@ -63,7 +64,7 @@ class ProjectService:
         user_dir = self.session.query(Project).filter(Project.id == project_id).first()
         user_dir = user_dir.user_id
         exception = HTTPException(
-            status_code=404,
+            status_code=403,
             detail='No roots')
         if user_dir != director_id:
             raise exception
@@ -89,10 +90,10 @@ class ProjectService:
 
 class TaskService(ProjectService):
 
-    def create_task(self, user_id: int, project_id: int, task_info: TaskCreate):
+    def create_task(self, user_id: int, task_info: TaskCreate):
         task = Task(
-            task_name=TaskCreate.task_name,
-            project_id=project_id,
+            task_name=task_info.task_name,
+            project_id=task_info.project_id,
             user_id=user_id,
             description=task_info.description,
             dead_line=task_info.deadline,
@@ -101,7 +102,7 @@ class TaskService(ProjectService):
         self.session.commit()
         task_project = TaskProject(
             task_id=task.id,
-            project_id=project_id
+            project_id=task_info.project_id
         )
         self.session.add(task_project)
         self.session.commit()
@@ -111,18 +112,72 @@ class TaskService(ProjectService):
         )
         self.session.add(task_user)
         self.session.commit()
-        return task
+        task_form = TaskForm(
+            task_name=task.task_name,
+            description=task.description,
+            deadline=task.dead_line,
+            project_id=task.project_id,
+            task_status=task.task_status
+        )
+        return task_form
 
     def give_user_task(self, task_id: int, user_id: int, project_id):
         pass
 
     def get_task_users(self, task_id: int):
-        return self.session.query(TaskUser.user_id).filter(TaskUser.task_id == task_id).all()
+        users_id = self.session.query(TaskUser).filter(TaskUser.task_id == task_id).all()
+        users = []
+        for i in users_id:
+            usr_id = i.user_id
+            user__ = self.session.query(User).filter(User.id == usr_id).first()
+            user_form = UserForm(
+                email=user__.email,
+                username=user__.username,
+                id=user__.id
+            )
+            users.append(user_form)
+        return users
+
+    def get_tasks_from_project(self, project_id: int, director_id: int):
+        project_director_id = (self.session.query(Project).filter(Project.id == project_id).first()).user_id
+        exception = HTTPException(
+            status_code=403,
+            detail='No roots')
+        if project_director_id != director_id:
+            raise exception
+        tasks_id = self.session.query(TaskProject).filter(TaskProject.project_id == project_id).all()
+        tasks = []
+        for i in tasks_id:
+            tsk_id = i.task_id
+            task__ = self.session.query(Task).filter(Task.id == tsk_id).first()
+            task_form = TaskForm(
+                task_name=task__.task_name,
+                description=task__.description,
+                deadline=task__.dead_line,
+                project_id=task__.project_id,
+                task_status=task__.task_status,
+                id=task__.id
+            )
+            tasks.append(task_form)
+        return tasks
 
     def get_tasks(self, user_id: int):
-        all_tasks = self.session.query(TaskUser).filter(TaskUser.user_id == user_id).all()
+        tasks_id = self.session.query(TaskUser).filter(TaskUser.user_id == user_id).all()
+        tasks = []
+        for i in tasks_id:
+            tsk_id = i.task_id
+            task__ = self.session.query(Task).filter(Task.id == tsk_id).first()
+            task_form = TaskForm(
+                task_name=task__.task_name,
+                description=task__.description,
+                deadline=task__.dead_line,
+                project_id=task__.project_id,
+                task_status=task__.task_status,
+                id=task__.id
+            )
+            tasks.append(task_form)
 
-        def key_sort(task: Task):
-            return task.dead_line
+        def key_sort(key: Task):
+            return key.deadline
 
-        return sorted(all_tasks, key=key_sort)
+        return sorted(tasks, key=key_sort)

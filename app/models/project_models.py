@@ -19,10 +19,12 @@ class TaskCreate(BaseModel):
     task_name: str
     description: str
     deadline: date
+    project_id: int
 
 
 class TaskForm(TaskCreate):
-    pass
+    task_status: str
+    id: str
 
 
 class UserProjectInfo(BaseModel):
